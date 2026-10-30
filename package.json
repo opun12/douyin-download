@@ -1,0 +1,33 @@
+{
+  "name": "douyin-download",
+  "version": "1.1.0",
+  "description": "抖音视频完整下载（无水印原片）— 用本地 Chromium 打开视频页取播放器直链，自动补音轨并用 ffprobe 校验时长",
+  "type": "module",
+  "bin": {
+    "douyin-dl": "scripts/douyin-dl.mjs"
+  },
+  "scripts": {
+    "start": "node scripts/douyin-dl.mjs",
+    "check": "node --check scripts/douyin-dl.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.10.0"
+  },
+  "files": [
+    "scripts/",
+    "download.bat",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "douyin",
+    "tiktok",
+    "download",
+    "puppeteer",
+    "video"
+  ],
+  "license": "MIT"
+}
