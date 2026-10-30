@@ -311,19 +311,49 @@ async function handleOne(browser, raw, outDir) {
 
     await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
+    // 必须在下面前置动作之前拦一次：ID 不存在 / 已删除时抖音会渲染"视频不存在"，
+    // 随后自动滑进推荐流，播放器照样能播别人的视频。
+    // 一旦错过这个提示（它只短暂出现），就会静默下一个完全无关的片子。
+    const notFoundText = () =>
+      page
+        .evaluate(() =>
+          /视频不存在|页面不存在|内容不存在|视频已删除/.test(document.body?.innerText || '')
+        )
+        .catch(() => false);
+
+    let sawNotFound = false;
+    for (let i = 0; i < 10; i++) {
+      if (await notFoundText()) {
+        sawNotFound = true;
+        break;
+      }
+      await sleep(250);
+    }
+    if (sawNotFound) {
+      throw new Error('该视频不存在 / 已删除 / 不可见（抖音已跳到推荐流，未下载任何内容）');
+    }
+
     // 等播放器真正就绪：duration>1 且 already 有数据，避免拿到预览小片
     let pageDur = 0;
     let liveSrc = '';
     for (let i = 0; i < 40; i++) {
-      const st = await page.evaluate(() => {
-        const v = document.querySelector('video');
-        if (!v) return null;
-        return {
-          src: v.currentSrc || v.src || '',
-          dur: Number.isFinite(v.duration) ? v.duration : 0,
-          ready: v.readyState,
-        };
-      });
+      // 页面可能正在做客户端跳转/验证，此时 evaluate 会抛
+      // "Execution context was destroyed"；这属于正常竞态，等下一轮即可
+      let st = null;
+      try {
+        st = await page.evaluate(() => {
+          const v = document.querySelector('video');
+          if (!v) return null;
+          return {
+            src: v.currentSrc || v.src || '',
+            dur: Number.isFinite(v.duration) ? v.duration : 0,
+            ready: v.readyState,
+          };
+        });
+      } catch {
+        await sleep(500);
+        continue;
+      }
       if (st) {
         liveSrc = st.src || liveSrc;
         pageDur = st.dur || pageDur;
@@ -344,6 +374,11 @@ async function handleOne(browser, raw, outDir) {
       .catch(() => {});
     for (let i = 0; i < 16 && audioMap.size === 0; i++) await sleep(500);
 
+    // 二次确认：等待与强制播放期间也可能滑进推荐流
+    if (await notFoundText()) {
+      throw new Error('该视频不存在 / 已删除 / 不可见（抖音已跳到推荐流，未下载任何内容）');
+    }
+
     const meta = await page.evaluate(() => {
       const og = (p) =>
         document.querySelector(`meta[property="${p}"]`)?.content ||
@@ -358,7 +393,7 @@ async function handleOne(browser, raw, outDir) {
         document.querySelector('[data-e2e="user-name"]')?.textContent ||
         '';
       return { title: (t || '').trim(), author: (a || '').trim() };
-    });
+    }).catch(() => ({ title: '', author: '' }));
 
     // 候选排序：先页面播放器正在用的，再按体积降序
     const ordered = [];

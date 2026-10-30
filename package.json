@@ -1,6 +1,6 @@
 {
   "name": "douyin-download",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "抖音视频完整下载（无水印原片）— 用本地 Chromium 打开视频页取播放器直链，自动补音轨并用 ffprobe 校验时长",
   "type": "module",
   "bin": {
